@@ -1,0 +1,325 @@
+---
+title: "Limpieza y analisis de datos"
+author: "Monica Romero Ferron"
+date: '`r format(Sys.Date(),"%e de %B, %Y")`'
+output:
+  html_document:
+    toc: yes
+  pdf_document:
+    toc: yes
+bibliography: scholar.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_libraries, include=FALSE}
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+```
+
+# 1.	Descripción del dataset. ¿Por qué es importante y qué pregunta/problema pretende responder?  
+
+El dataset elegido esta descargando de la pagina web Kaggle y 
+
+1 - fixed acidity (acidez fija): la mayoria de los acidos relacionados con el vino son fijos o no volatiles.
+
+2 - volatile acidity (acidez volatil): cantidad de ácido acético en el vino.
+
+3 - citric acid (ácido cítrico): puede añadir "frescura" y sabor a los vinos.
+
+4 - residual sugar (azucar residual): cantidad de azúcar que queda después de que se detiene la fermentación.
+
+5 - chlorides (cloruros): cantidad de sal en el vino.
+
+6 - free sulfur dioxide (dióxido de azufre libre)
+
+7 - total sulfur dioxide (dióxido de azufre total)
+
+8 - density (densidad): cercanía de la densidad a la del agua dependiendo del porcentaje de alcohol y contenido de azucar.
+
+9 - pH: describe que tan ácido es un vino en una escala de 0 a 14.
+
+10 - sulphates (solfitos): aditivo de vino que puede contribuir a los niveles de dióxido de azufre.
+
+11 - alcohol: el porcentaje de alcohol en el vino.
+
+12 - quality (score between 0 and 10)
+
+# 2.	Integración y selección de los datos de interés a analizar.
+
+A continuacion vamos a estudiar el dataset con el que vamos a trabajar y visualizar las variables que vamos a usar a lo largo de la practica. 
+
+```{r}
+# Exploring and understanding data
+df <- read.csv("winequality-red.csv", header = TRUE,sep = ";")
+head(df)
+```
+
+```{r}
+dim(df)
+```
+
+```{r}
+str(df)
+```
+
+```{r}
+summary(df)
+```
+
+# 3.	Limpieza de los datos. 
+## 3.1.	¿Los datos contienen ceros o elementos vacíos? ¿Cómo gestionarías cada uno de estos casos? 
+
+```{r}
+# Números de valores desconocidos por campo
+sapply(df, function(x) sum(is.na(x)))
+```
+
+En este caso no hay datos vacios o con elementos irregulares. En el caso
+
+## 3.2.	Identificación y tratamiento de valores extremos. 
+
+Utilizaremos la funcion boxplots.stats en R. Asi nos mostrara todos los puntos atipicos:
+```{r}
+boxplot.stats(df$fixed.acidity)$out
+```
+
+```{r}
+boxplot.stats(df$volatile.acidity)$out
+```
+
+```{r}
+boxplot.stats(df$citric.acid)$out
+```
+
+```{r}
+boxplot.stats(df$chlorides)$out
+```
+
+```{r}
+boxplot.stats(df$free.sulfur.dioxide)$out
+```
+
+```{r}
+boxplot.stats(df$total.sulfur.dioxide)$out
+```
+
+```{r}
+boxplot.stats(df$density)$out
+```
+
+```{r}
+boxplot.stats(df$pH)$out
+```
+
+```{r}
+boxplot.stats(df$sulphates)$out
+```
+
+```{r}
+boxplot.stats(df$alcohol)$out
+```
+
+```{r}
+boxplot.stats(df$quality)$out
+```
+
+En el caso de los outliers si suponemos que los datos son recogidos de forma correcta y son datos reales se incluyen en el estudio pero si consideramos que los datos se estan recogiendo de forma incorrecta los deberemos eliminar del dataset. 
+
+En este dataset en concreto vemos que los datos son correctos y se analizaran conjuntamente con el resto de datos. 
+
+
+# 4.	Análisis de los datos.
+## 4.1.	Selección de los grupos de datos que se quieren analizar/comparar (planificación de los análisis a aplicar).
+
+```{r}
+library(MASS)
+library(dplyr)
+for ( i in 1:12 ) {
+  truehist(df[[i]], xlab = names(df)[i], col = 'lightgreen', main = paste("Average =",signif(mean(df[[i]]),3)))
+}
+```
+
+Para la metrica queality vamos a realizar una agrupacion por vino de calidad superior o inferior. Calidad superior seran los vinos con la metrica quality >= 6 y los de calidad infreior quality <=5. 
+
+```{r}
+df$quality_2<-ifelse(df$quality>=6,1,0)
+with(df,table(df$quality_2))
+```
+
+La principal metrica es la calidad del vino que es la variable independiente.  
+
+```{r}
+library(corrplot)
+corMatrix <- cor(df)
+corrplot(corMatrix, order = "FPC", method = "color", type = "lower", tl.cex = 0.6, tl.col = 'black')
+```
+
+A partir de la matriz de correlaciones vemos que existe una correlacion positiva mayor del 0.6 entre: 
+  - Total sulfur dioxide con free sulfur dioxide
+  - Fixed acidity con density
+  - Fixed acidity con fixed acidity 
+  - Quality con alcohol
+  
+Con correlacion negativa mayor a -0.8 tenemos: 
+  - Fixed acidity con PH
+  - Quality con volatile acidity
+
+Estos serian datos de interes a analizar entre ellos para ver cuanta relacion tiene con la calidad del vino.
+
+En nuestro caso unas metricas interesantes a realizar el estudio seria con las relacionadas con quality, por ejemplo, la metrica alcochol que son las que tienen una relacion mas directa entre ellos:
+
+*Alcohol y Quality*
+```{r}
+boxplot(alcohol~quality, data = df)
+```
+
+*Volatile Acidity y Quality*
+
+```{r}
+boxplot(volatile.acidity~quality, data = df)
+```
+
+## 4.2. Comprobación de la normalidad y homogeneidad de la varianza.
+
+Para la comprobacion de la normalidad vamos a usar la prueba de normalidad de Anderson-Darling
+```{r}
+library(nortest)
+alpha = 0.05
+col.names = colnames(df)
+for (i in 1:ncol(df)) {
+if (i == 1) cat("Variables que no siguen una distribución normal:\n")
+if (is.integer(df[,i]) | is.numeric(df[,i])) {
+p_val = ad.test(df[,i])$p.value
+if (p_val < alpha) {
+cat(col.names[i])
+# Format output
+if (i < ncol(df) - 1) cat(", ")
+if (i %% 3 == 0) cat("\n")
+}
+}
+}
+```
+
+Podemos ademas observarlo mediante las funciones QQplots de R.
+
+```{r}
+par(mfrow=c(3,4))
+qqnorm(df$fixed.acidity, main = expression('Normal Q-Q Plot for Fixed acidity'))
+qqline(df$fixed.acidity,col=2)
+qqnorm(df$volatile.acidity, main = expression('Normal Q-Q Plot for Volatile Acidity'))
+qqline(df$volatile.acidity,col=2)
+qqnorm(df$citric.acid, main = expression('Normal Q-Q Plot for Citric Acid'))
+qqline(df$citric.acid,col=2)
+qqnorm(df$residual.sugar, main = expression('Normal Q-Q Plot for Residual Sugar'))
+qqline(df$residual.sugar,col=2)
+qqnorm(df$chlorides, main = expression('Normal Q-Q Plot for Chlorides'))
+qqline(df$chlorides,col=2)
+qqnorm(df$free.sulfur.dioxide, main = expression('Normal Q-Q Plot for Free Sulfur Dioxide'))
+qqline(df$free.sulfur.dioxide,col=2)
+qqnorm(df$total.sulfur.dioxide, main = expression('Normal Q-Q Plot for Total Sulfur Dioxide'))
+qqline(df$total.sulfur.dioxide,col=2)
+qqnorm(df$density, main = expression('Normal Q-Q Plot for Density'))
+qqline(df$density,col=2)
+qqnorm(df$pH, main = expression('Normal Q-Q Plot for PH'))
+qqline(df$pH,col=2)
+qqnorm(df$sulphates, main = expression('Normal Q-Q Plot for Sulphates'))
+qqline(df$sulphates,col=2)
+qqnorm(df$alcohol, main = expression('Normal Q-Q Plot for Alcohol'))
+qqline(df$alcohol,col=2)
+```
+
+Se puede ver como realmente ninguna metrica se distribuye como una normal gracias al test de QQplot.
+
+Para el estudio de la homogeneidad de varianzas vamos a usar el test de Fligner-Killen:
+
+```{r}
+fligner.test(quality ~ alcohol, data = df)
+```
+
+```{r}
+fligner.test(quality ~ volatile.acidity, data = df)
+```
+
+Podemos afirmar que las varianzas son iguales y que el alcohol son diferentes entre las cualidades del vino, ya que el p-valor que obtenemos es inferior a 0.05. Mientras que la cualidad del vino con la metrica volatile acidity tenemos un p-valor mayor a 0.05 y podemos afirmar que sus varianzas son similares. 
+
+## 4.3. Aplicación de pruebas estadísticas para comparar los grupos de datos. En función de los datos y el objetivo del estudio, aplicar pruebas de contraste de hipótesis, correlaciones, regresiones, etc. Aplicar al menos tres métodos de análisis diferentes.
+
+En este apartado podriamos añadir el estudio de correlaciones usado anteriormente para ver la relacion entre las metricas. Ademas de observar la correlacion mediante la matriz anterior vamos a realizar test de correlaciones entre las variables de interes:
+
+```{r}
+cor.test(df$alcohol,df$quality)
+```
+```{r}
+cor.test(df$pH,df$quality)
+```
+```{r}
+cor.test(df$volatile.acidity,df$quality)
+```
+```{r}
+cor.test(df$citric.acid,df$quality)
+```
+```{r}
+cor.test(df$sulphates,df$quality)
+```
+
+Observamos que las metricas sulphates, citric, volatile acidity, ph y alcohol su p-valor es menor que 0.05, es decir, estas metricas estan relcionadas con la calidad del vino y son muy utiles para realizar el posterior estudio. 
+
+### 4.3.1 Hipotesis nula
+
+Realicemos un test de *hipotesis nula con la metrica alcohol y quality. Vamos estudiar si no hay diferencia significativa en la concentracion de alcohol de un vino de calidad superior y uno de calidad inferior, es decir, la cantidad de alcohol es independiente en la calidad del vino. 
+
+```{r}
+t.test(df$alcohol~df$quality_2)
+```
+
+Observamos como el p-valor es menor que 0.05 con lo cual se rechaza la hipotesis nula. Eso quiere decir que si que hay relacion entre la concentracion de alcohol y la calidad de los vinos. 
+
+*Hipotesis nula volatile acidity:* no hay diferencia singificativa en la metrica volatile acidity entre un vino con calidad superior o inferior. 
+```{r}
+t.test(df$volatile.acidity~df$quality_2)
+```
+En este caso el p-valor es inferior a 0.05 con lo cual se rechaza la hipotesis nula. Hay relacion entre la metrica volatile acidity y la calidad del vino. 
+
+*Hipotesis nula citric.acid:* no hay diferencia singificativa en la metrica citric acid entre un vino con calidad superior o inferior. 
+```{r}
+t.test(df$citric.acid~df$quality_2)
+```
+En este caso el p-valor es inferior a 0.05 con lo cual se rechaza la hipotesis nula. Hay relacion entre la metrica citric y la calidad del vino. 
+
+*Hipotesis nula sulphates:* no hay diferencia singificativa en la metrica sulphates entre un vino con calidad superior o inferior. 
+```{r}
+t.test(df$sulphates~df$quality_2)
+```
+En este caso el p-valor es inferior a 0.05 con lo cual se rechaza la hipotesis nula. Hay relacion entre la metrica sulphates y la calidad del vino. 
+
+###4.3.2 Regresion lineal
+
+A continuacion realizamos un modelo de regresion lineal con las variables:
+
+```{r}
+modelo1 <- lm(quality~volatile.acidity + chlorides + free.sulfur.dioxide + total.sulfur.dioxide + pH + sulphates + alcohol, data=df)
+summary(modelo1)
+```
+
+Tenemos un coeficiente de determinacion del 35%. A continuacion podriamos hacer predicciones con este modelo:  
+
+```{r}
+data<-data.frame(volatile.acidity=0.57,chlorides=0.2,free.sulfur.dioxide =25, total.sulfur.dioxide=100, pH =3,65, sulphates =0.78, alcohol=10)
+predict(modelo1,data)
+```
+# 5. Representación de los resultados a partir de tablas y gráficas.
+
+A lo largo de todo el proyecto se han realizado tablas y graficas donde podemos obtener las diversas conclusiones. 
+
+# 6. Resolución del problema. A partir de los resultados obtenidos, ¿cuáles son las conclusiones? ¿Los resultados permiten responder al problema?
+
+En este analisis se ha estudiado un dataset relacionado con las caracteristicas que poseen los vinos y su calidad segun como varian estas caracteristicas. Se ha realizado un estudio general y limpieza del dataset para su posterior estudio mas a fondo. Primero se ha estudiado mediante diagramas de cajas y librerias de R una limpieza de los outliers, en concreto en este dataset se ha podido ver como no hay ni valores perdidos ni outliers que nos puedan enturbiar los datos para ser estudiados. Con lo cual no hemos eliminado registros de nuestro dataset.
+
+El siguiente paso a realizar fue hacer un estudio de correlacion de las variables para saber cuales estan mas realacionadas con la calidad del vino tanto de forma negativa como positiva la correlacion. Cuando hemos obtenido las metricas mas interesantes y que mas relacion tienen con la calidad de los vinos se ha hecho un estudio de su normalidad y homocedasticidad. Por ultimo se realizar una regresion lineal con las metricas mas interesante para poder hacer una prediccion de la calidad del vino.
+
+# 7. Código.

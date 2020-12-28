@@ -14,4 +14,4 @@ Universitat Oberta of Catalunya.
 Consultora: Mireia Calvo Gonzalez
 
 # Licencia
-El contenido de este proyecto esta licencia bajo la [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International] (https://creativecommons.org/licenses/by-nc-sa/4.0/), y el código fuente usadao para mostrar este contenido esta licenciado bajo la [MIT license](https://opensource.org/licenses/mit-license.php).
+El contenido de este proyecto esta licencia bajo la [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International](https://creativecommons.org/licenses/by-nc-sa/4.0/), y el código fuente usadao para mostrar este contenido esta licenciado bajo la [MIT license](https://opensource.org/licenses/mit-license.php).
